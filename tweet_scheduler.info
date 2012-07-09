@@ -1,0 +1,10 @@
+;$Id;
+name = Tweet Scheduler
+description = Allows users to schedule publishing tweets to Twitter
+dependencies[] = twitter
+dependencies[] = oauth_common
+dependencies[] = date
+core = 7.x
+files[] = tweet_scheduler.install
+files[] = tweet_scheduler.module
+files[] = tweet_scheduler.form.inc

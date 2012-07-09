@@ -1,0 +1,69 @@
+<?php
+
+/**
+ *Implements hook_schema()
+ */
+function tweet_scheduler_schema() {
+  $schema = array();
+  $schema['tweet_scheduler'] = array(
+    'description' => 'stores tweets posted',
+    'fields' => array(
+      'screen_name' => array(
+        'description' => 'stores name of the {twitter_accounts} user',
+        'type' => 'varchar',
+        'not null' => TRUE,
+        'length' => 255,
+        'default' => ''
+      ),
+      'uid' => array(
+        'description' => "The {users}.uid",
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'size' => 'big',
+        'not null' => TRUE,
+        'default' => '0',
+      ),
+      'scheduled' => array(
+        'description' => 'stores wheather tweet id scheduled or not',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => '0'
+      ),
+      'scheduled_timestamp' => array(
+        'description' => 'Scheduled date and time in timestamp',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => '0'
+      ),
+      'text' => array(
+        'description' => 'the text of the {twitter} posts',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+      'unique_no' => array(
+        'description' => 'an auto incrementing field',
+        'type' => 'serial',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+      ),
+        
+      'published_time' => array(
+        'description' => 'stores wheather when the tweet was published',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => '0'
+      ),
+    ),
+    'primary key' => array('unique_no'),
+  );
+  return $schema;
+}
+
+/**
+ *implements hook_update_N()
+ */
+
+function tweet_scheduler_update_7011() {
+  drupal_install_schema('tweet_scheduler');
+}

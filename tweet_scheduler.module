@@ -1,0 +1,142 @@
+<?php
+
+/**
+ * Implements hook_menu()
+ */
+function tweet_scheduler_menu() {
+  $items = array();
+   $items['user/%/tweet_scheduler'] = array(
+    'title' => 'Tweet Scheduler',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tweet_scheduler_cron_form', 1),
+    'access arguments' => array('administer users'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['node/add/tweet_scheduler'] = array(
+    'title' => 'Schedule a tweet',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tweet_scheduler_form'),
+    'access arguments' => array('administer users'),
+    'file' => 'tweet_scheduler.form.inc',
+  );
+  return $items;
+}
+function tweet_scheduler_cron_form($form, &$form_state) {
+  $form = array();
+  $form['user_tweet_interval_time'] = array(
+    '#type' => 'select',
+    '#title' => t('Time Interval'),
+    '#options' => array(
+      0 => t('0'),
+      1 => t('1 hour'),
+      2 => t('2 hour'),
+      3 => t('3 hour'),
+      4 => t('4 hour'),
+      5 => t('5 hour'),
+	  ),
+    '#description' => t('Choose the Time Difference'),
+    '#default value' => '0',
+    '#required' => TRUE,
+  );
+  $form['buttons']['submit'] = array(
+	  '#type' => 'submit',
+	  '#value' => t('Save')
+	);
+  return $form;
+}
+function tweet_scheduler_cron_form_submit($form, &$form_state) {
+  global $user;
+  $account = user_load($user->uid);
+  $interval_time = $form_state['values']['user_tweet_interval_time']['options'];
+  user_save($user, array('data' => array('tweet_scheduler_interval_time' => $interval_time)));
+  /*global $user;
+  $account = user_load($user->uid);
+  $interval_time = $account->data['tweet_scheduler_interval_time'];
+*/
+}
+
+/**
+ * Posts a tweet to Twitter
+ *
+ * @param $message
+ *   The text of the message being posted.
+ * 
+ * @param $screen_name
+ *   The {twitter_accounts} user
+ */
+function tweet_scheduler_post_to_twitter($message, $screen_name, $account = NULL) {
+  if (empty($message)) {
+    return;
+  }
+  global $user;
+  if (empty($account)) {
+    $account = $user;
+  }
+  module_load_include('inc', 'twitter');
+  $twitter_accounts = module_invoke('twitter', 'twitter_accounts', $account);
+	foreach ($twitter_accounts as $twitter_account_available) {
+   if ($twitter_account_available->screen_name == $screen_name) {
+      (twitter_set_status($twitter_account_available, $message));
+       break;
+	  }
+	}
+}
+/**
+ *Implements hook_cron()
+ */
+function tweet_scheduler_cron() {
+  global $user;
+  $account = user_load($user->uid);
+  $interval_time = $account->data['tweet_scheduler_interval_time'];
+  $current_time = time();
+  $query = db_select('tweet_scheduler', 'a')
+          ->fields('a', array('scheduled', 'text', 'screen_name', 'scheduled_timestamp', 'uid', 'published_time', 'unique_no'))
+          ->condition('scheduled', '1', '=')
+          ->execute()
+          ->fetchAll();
+  foreach ($query as $result) {
+  if (($current_time > $result->scheduled_timestamp) && ($result->published_time == 0))  {
+    $unique_no = $result->unique_no;
+    tweet_scheduler_post_to_twitter($result->text, $result->screen_name, user_load($result->uid));
+    $update = db_update('tweet_scheduler')
+      ->fields(array(
+        'published_time' => time(),
+      ))
+      ->condition('unique_no', $unique_no, '=')
+      ->execute();
+  }
+  }
+  $query = db_select('tweet_scheduler', 'a')
+          ->fields('a', array('scheduled', 'text', 'screen_name', 'uid', 'published_time', 'unique_no','scheduled_timestamp'))
+          ->condition('scheduled', '2', '=')
+          ->orderBy('text')
+          ->orderRandom()
+          ->execute()
+          ->fetchAll();
+  if ($current_time > $query['scheduled_timestamp']) {
+    $unique_no = $query['unique_no'];
+    tweet_scheduler_post_to_twitter($query['text'], $query['screen_name'], user_load($query['uid']));
+    $update = db_update('tweet_scheduler')
+      ->fields(array(
+        'published_time' => time(),
+      ))
+      ->condition('unique_no', $unique_no, '=')
+      ->execute();
+    global $user;
+    $account = user_load($user->uid);
+    $interval_time = $account->data['tweet_scheduler_interval_time'];
+    $query = db_select('tweet_scheduler', 'a')
+            ->fields('a', array('scheduled', 'published_time', 'unique_no'))
+            ->condition('scheduled', '2', '=')
+            ->execute()
+            ->fetchAll();
+    foreach ($query as $result) {
+      $change = db_update('tweet_scheduler')
+               ->fields(array(
+               'scheduled_timestamp' => time() + $interval_time*60*60,
+               ))
+              ->condition('scheduled', '2', '=')
+              ->execute();
+    }
+  }      
+}
